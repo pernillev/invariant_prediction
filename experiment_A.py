@@ -1,25 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Oct 12 15:09:59 2021
+Created on Wed Oct 13 16:29:13 2021
 
-@author: PernilleV
+@author: Perni
 """
+
 
 import numpy as np
 import pandas as pd
 import random
+import pystan
 
-dag_base_adj = pd.DataFrame(
-    {'X1': np.zeros(7), 
-     'X2': [-2,0,0,0,0,0,0], 
-     'X3': np.zeros(7), 
-     'X4': np.zeros(7), 
-     'X5': np.zeros(7), 
-     'Y': [0,1,1,0,0,0,0],
-     'X6':[0,0,0,0,1,-0.3,0]}
-    )
+from stanmodel_non_centered import model
+from simulating o
 
-dag = dag_base_adj.to_numpy()
 
 #Simulation functions
 
@@ -87,3 +81,28 @@ for env in Es:
       df = pd.concat([df,sample])
     # Append df to list of dataframes
     list_of_df_A.append(df)
+
+
+
+#Experiment A 
+list_of_fit_A = list()
+
+for df in list_of_df_A:
+  dataframe = df
+  Y = dataframe.Y
+  X = dataframe.drop(['Y'],axis=1)
+
+  N, D = X.shape
+  E = len(dataframe.index.unique())
+  e = dataframe.index.tolist()
+
+  data = {'N': N, 'D': D, 'E': E, 'e': e, 'X': X, 'y': Y}
+  # Stan model object
+  sm = pystan.StanModel(model_code = model)
+  fit = sm.sampling(data = data, iter = 2000, chains = 4,
+                    algorithm = "NUTS", seed = 101, 
+                     control=dict(adapt_delta=0.95,max_treedepth=15))
+
+  list_of_fit_A.append(fit)
+  
+  
