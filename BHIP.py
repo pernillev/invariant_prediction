@@ -263,20 +263,20 @@ def bhip_test(fit,scm,alpha = 0.05,global_rope = 0):
     return IP
 
 
-# Fit 
-if __name__ == '__main__':
-    list_of_fit = list()
-    for i in range(100):
+# # Fit 
+# if __name__ == '__main__':
+#     list_of_fit = list()
+#     for i in range(100):
 
-        filename_scm = 'data/experimentA/scm' + str(i) + '.pkl'
-        with open(filename_scm, 'rb') as inp:
-            S = pickle.load(inp)
-        if sum(S.W[0]) != 0:
-            filename_df = 'data/experimentA/df' + str(i)
-            dataframe = pd.read_csv(filename_df, index_col=0)
-            dataframe.columns = ['Y'] + ['X' + str(i + 1) for i in range(dataframe.shape[1] - 1)]
-            F = bhip_fit(dataframe, model_2, 100 + i)
-            list_of_fit.append(F)
+#         filename_scm = 'data/experimentA/scm' + str(i) + '.pkl'
+#         with open(filename_scm, 'rb') as inp:
+#             S = pickle.load(inp)
+#         if sum(S.W[0]) != 0:
+#             filename_df = 'data/experimentA/df' + str(i)
+#             dataframe = pd.read_csv(filename_df, index_col=0)
+#             dataframe.columns = ['Y'] + ['X' + str(i + 1) for i in range(dataframe.shape[1] - 1)]
+#             F = bhip_fit(dataframe, model_2, 100 + i)
+#             list_of_fit.append(F)
 
 # if __name__ == '__main__':
 #     list_of_fit = list()
