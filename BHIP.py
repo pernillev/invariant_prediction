@@ -5,12 +5,13 @@ Created on Sun Oct 17 07:34:40 2021
 @author: Pernille
 """
 
-
 import numpy as np
 import pandas as pd
 import pystan
 import pickle
 
+# Models
+# non centered reparamitrization
 model_2 = """
 data {
   int<lower=0> N;             // number of observations
@@ -44,10 +45,10 @@ model {
     mu[d] ~ normal(0, 5);                     // Prior model
     tau[d] ~ cauchy(0, 2.5);                  // Prior model
       for (i in 1:E)
-        gamma[d,i] ~ normal(mu[d], tau[d]);       // Non-centered hierarchical model
+        gamma[d,i] ~ normal(mu[d], tau[d]);   // Non-centered hierarchical model
   }             
   for (n in 1:N)
-    y[n] ~ normal(X[n, :]*beta[:, e[n]], 1);          // Observational model
+    y[n] ~ normal(X[n, :]*beta[:, e[n]], 1);  // Observational model
 }
 """
 
@@ -78,11 +79,10 @@ model {
 }
 """
 
+
 # Simulation functions
-
-
 # fit
-def bhip_fit(dataframe, model_description, filename, seed):
+def bhip_fit(dataframe, model_description, seed):
     Y = dataframe.Y
     X = dataframe.drop(['Y'], axis=1)
 
@@ -93,50 +93,35 @@ def bhip_fit(dataframe, model_description, filename, seed):
     data = {'N': N, 'D': D, 'E': E, 'e': e, 'X': X, 'y': Y}
     # Stan model object
     sm = pystan.StanModel(model_code=model_description)
-    fit: object = sm.sampling(data=data, iter=2500, chains=4,thin=3,verbose = True,
-                              algorithm="NUTS", seed=seed,
-                              control=dict(adapt_delta=0.95, max_treedepth=15))
+    fit = sm.sampling(data=data, iter=2000, chains=4, verbose=True,
+                      algorithm="NUTS", seed=seed,
+                      control=dict(adapt_delta=0.95, max_treedepth=15))
     return fit
 
-
+# Fit 
 if __name__ == '__main__':
     list_of_fit = list()
-    for i in range(30,40):
-    
+    for i in range(100):
         filename_scm = 'data/experimentA/scm' + str(i) + '.pkl'
         with open(filename_scm, 'rb') as inp:
             S = pickle.load(inp)
         if sum(S.W[0]) != 0:
+            #Import data
             filename_df = 'data/experimentA/df' + str(i)
             dataframe = pd.read_csv(filename_df, index_col=0)
-            dataframe.columns = ['Y'] + ['X' + str(i+1) for i in range(dataframe.shape[1]-1)]
-            F = bhip_fit(dataframe, model_1, 'data/experimentA/fit0',100+i)
-
-# if __name__ == '__main__':
-#     list_of_fit = list()
-#     for i in range(100):
-    
-#         filename_scm = 'data/experimentA/scm' + str(i) + '.pkl'
-#         with open(filename_scm, 'rb') as inp:
-#             S = pickle.load(inp)
-#         filename_df = 'data/experimentA/df' + str(i)
-#         dataframe = pd.read_csv(filename_df, index_col=0)
-#         dataframe.columns = ['Y'] + ['X' + str(i+1) for i in range(dataframe.shape[1]-1)]
-#         F = bhip_fit(dataframe, model, 'data/experimentA/fit0',100+i)
-#         list_of_fit.append(F)
+            dataframe.columns = ['Y'] + ['X' + str(i + 1) for i in range(dataframe.shape[1] - 1)]
+            #fit data with stan
+            F = bhip_fit(dataframe, model_2, 100 + i)
+            list_of_fit.append(F)
 
 
-# test
-def gen_pooling(sample_beta, sample_mu, E: int):
+# Tests
+def pooling_factor(sample_beta, sample_mu, E: int):
     """
-  Input:
-    parameters:  E samples of size N (NxE matrix)
-    means: 1 samples of size N (N x 1 matrix)
-
     Parameters
     ----------
-    sample_beta
-    sample_mu: list
+    sample_beta:
+    sample_mu: 
     E : int
   """
     # difference matrix Nx
@@ -154,13 +139,9 @@ def gen_pooling(sample_beta, sample_mu, E: int):
     lambda_pool = 1 - var_exp_diff / exp_var_diff
     return lambda_pool
 
-
-def hdi_rope_test(sample, margin, CI):
-    """This function returns the decision (rejected, accepted or undecided)
-       on the hypothesis that the parameter is zero"""
-
+def hdi_rope_test(sample, margin, alpha):
     ## Credible Interval
-    q_low = (1 - CI) * 0.5
+    q_low = alpha * 0.5
     CI_low = np.quantile(sample, q_low)
     CI_high = np.quantile(sample, 1 - q_low)
 
@@ -170,42 +151,74 @@ def hdi_rope_test(sample, margin, CI):
 
     # Decision
     if (CI_low > rope_high) or (CI_high < rope_low):
-        return f'Rejected'
+        return 'Rejected'
     elif (CI_low > rope_low) and (CI_high < rope_high):
-        return f'Accepted'
+        return 'Accepted'
     else:
         return "Undecided"
 
 
-def bhip_test(fit):
+def bhip_test(fit,scm,alpha = 0.05,global_rope = 0):
+
     D = fit.data["D"]
     E = fit.data["E"]
     Y = fit.data["y"]
     mu = fit.extract()['mu']  # matrix N x D
     beta = fit.extract()['beta']  # N x D x E
+    
+    IP = list()
 
     for d in range(D):
         print(f'---------beta_{d + 1}---------')
+        
         invariant = 0
+        # Test for zero estimates
         rope = [0.1 * np.std(Y[Y.index == (e + 1)]) for e in range(E)]
-        zero_test_beta = [hdi_rope_test(beta[:, d, e], rope[0], 0.95) for e in range(E)]
-        zero_test_mu = hdi_rope_test(mu[:, d], np.mean(rope), 0.95)
+        zero_test_beta = [hdi_rope_test(beta[:, d, e], rope[0], alpha) for e in range(E)]
+        
+        if global_rope == 0:
+            zero_test_mu = hdi_rope_test(mu[:, d], np.mean(rope), alpha)
+        else:
+            zero_test_mu = hdi_rope_test(mu[:, d], global_rope, alpha)
         if zero_test_mu != "Rejected":
             invariant += 1
-        print('Hypothesis: Global mean is zero ->', zero_test_mu)
-        l = gen_pooling(beta[:, d, :], mu[:, d], E)
-        if l < 0.5:
+        
+        # Pooling factor
+        pooling = pooling_factor(beta[:, d, :], mu[:, d], E)
+        if pooling < 0.5:
             invariant += 1
-        print(f'generalized pooling factor: {l}')
-
         for e in range(E):
-            print(f'Hypothesis: beta^{e + 1} is zero ->', zero_test_beta[e])
             if zero_test_beta[e] != "Rejected":
                 invariant += 1
 
         if invariant == 0:
-            print(f'Invariant Predictor: YES')
+            IP.append(d)
+    return IP
 
-        else:
-            print(f'Invariant Predictor: Undecided')
-    return ()
+
+# Fit 
+if __name__ == '__main__':
+    list_of_fit = list()
+    for i in range(100):
+
+        filename_scm = 'data/experimentA/scm' + str(i) + '.pkl'
+        with open(filename_scm, 'rb') as inp:
+            S = pickle.load(inp)
+        if sum(S.W[0]) != 0:
+            filename_df = 'data/experimentA/df' + str(i)
+            dataframe = pd.read_csv(filename_df, index_col=0)
+            dataframe.columns = ['Y'] + ['X' + str(i + 1) for i in range(dataframe.shape[1] - 1)]
+            F = bhip_fit(dataframe, model_2, 100 + i)
+            list_of_fit.append(F)
+
+# if __name__ == '__main__':
+#     list_of_fit = list()
+#     for i in range(5):
+#         filename_scm = 'data/experimentA/scm' + str(i) + '.pkl'
+#         with open(filename_scm, 'rb') as inp:
+#             S = pickle.load(inp)
+#         filename_df = 'data/experimentA/df' + str(i)
+#         dataframe = pd.read_csv(filename_df, index_col=0)
+#         dataframe.columns = ['Y'] + ['X' + str(i+1) for i in range(dataframe.shape[1]-1)]
+#         F = bhip_fit(dataframe, model, 'data/experimentA/fit0',100+i)
+#         list_of_fit.append(F)

@@ -20,8 +20,8 @@ def pick_coef(lb,ub):
 ## Experiment A
 def generate_random_SCM(seed):
     # generate random quantities
-    D = random.randint(5,15) # number of nodes
-    deg = random.randint(1,4) # average degree of graph
+    D = random.randint(5,40) # number of nodes
+    deg = random.randint(2,4) # average degree of graph
     lb1 = random.uniform(0.1,2) # lower bound on linear coefficients
     ub1 = lb1 + random.uniform(0.1,1) # upper bound of coefficient values
     sigma_min = random.uniform(0.1,2) # the minimal noise variance
@@ -37,40 +37,47 @@ def generate_random_SCM(seed):
                     W[node][relation] = pick_coef(lb1,ub1)
         return(W)
     DAG_coefs = set_coef(W)
+    # Geenerate SCM
     scm = sempler.LGANM(DAG_coefs, (0,0), (sigma_min,sigma_max))
     
     return scm
 
-def generate_dataframe(E,Ns,scm):
-    N = random.choice(Ns)
-    D = len(scm.W)
-    # generate random quantities regarding interventions
-    a_min = np.random.uniform(0.1,4,D)
-    a_Delta = [0 if (random.choice(range(3))==0) else np.random.uniform(0.1,2) for node in range(D)]
-    a = a_min + a_Delta
-    # sample indexset of nodes to intervene on (disregarding X0 = Y)
-    inv_theta = (D-1) if (random.choice(range(6))==0) else np.random.uniform(1.1,3)
-    A = random.sample(range(1,D), round((D-1)/inv_theta)) # do not interveene on node 0
-    # lower and upper bound of new coefficients
-    lbe = np.random.uniform(0.1,2,1) 
-    ube = lbe + np.random.uniform(0.1,1,1) 
-    
-    
+def generate_dataframe(E,N,scm):
     # Sample observational and interventional data
-    e = 1 # observational data
-    data_obs = scm.sample(n=N)
+    e = 1 
+    data_obs = scm.sample(N)
     df = pd.DataFrame(data_obs, index = np.repeat(e,N))
-    for node in A:    
-        for e in range(2,E+1):       
+    
+    for e in range(2,E+1):     
+        D = len(scm.W)
+        
+        # generate random quantities regarding interventions
+        a_min = np.random.uniform(0.1,4,D)
+        a_Delta = [0 if (random.choice(range(3))==0) 
+                   else np.random.uniform(0.1,2) for node in range(D)]
+        a = a_min + a_Delta
+        
+        # sample indexset of nodes to intervene on (disregarding X0 = Y)
+        inv_theta = [(D-1) if (random.choice(range(6))==0) 
+                     else np.random.uniform(1.1,3)]
+        A = random.sample(range(1,D), round((D-1)/inv_theta[0])) # do not interveene on node 0
+        
+        # lower and upper bound of new coefficients
+        lbe = random.uniform(0.5,1) 
+        ube = lbe + random.uniform(0.1,1)
+        
+        # Intervene on nodes in A
+        for node in A:
             # Shift-intervention on selected nodes
             scm_intervention = scm
             if (random.choice(range(3))==0): 
-                new_coefs = [0 if scm.W[node][relation] == 0 else pick_coef(lbe,ube) for relation in range(D)]
+                new_coefs = [0 if scm.W[node][relation] == 0 
+                             else pick_coef(lbe,ube) for relation in range(D)]
                 scm_intervention.W[node] = new_coefs
-        
-            data_int = scm_intervention.sample(n=N, shift_interventions = {node: (0, a[node])}) # scale with a
-            df_e = pd.DataFrame(data_int, index = np.repeat(e,N))
-            df = pd.concat([df,df_e])
+        # sample interventional data for environment e
+        data_int = scm_intervention.sample(N, shift_interventions = {node: (0, a[node])}) # scale with a
+        df_e = pd.DataFrame(data_int, index = np.repeat(e,N))
+        df = pd.concat([df,df_e])
     return df
 
 for exp in range(500):
@@ -88,15 +95,16 @@ for exp in range(500):
     
     E  = 2
     Ns = [50,100,150,250,500]
+    N = random.choice(Ns)
     
     
-    df = generate_dataframe(E,Ns,scm)
+    df = generate_dataframe(E,N,scm)
     
     filename = 'data/experimentA/df' + str(exp) 
     df.to_csv(filename,index = True)    
 
 
-## Experiement B
+## Experiment B
 
 def transform(N, sample, inv_prob_N, inv_prob_S, scale):
     # transform a sample with noise intervention and/or scaling
