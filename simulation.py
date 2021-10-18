@@ -15,8 +15,6 @@ def pick_coef(lb,ub):
    coef = np.round(np.random.uniform(lb,ub,1)*random.choice([-1,1]),2)
    return coef[0]
 
-
-
 ## Experiment A
 def generate_random_SCM(seed):
     # generate random quantities
@@ -81,7 +79,7 @@ def generate_dataframe(E,N,scm):
     return df
 
 for exp in range(500):
-    seed = exp+1000
+    seed = exp + 1000
     scm = generate_random_SCM(seed)
     
     def save_object(obj, filename):

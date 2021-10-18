@@ -29,8 +29,8 @@ parameters {
 }
 
 transformed parameters {
-  // Recentered coefficients
-  matrix[D,E] beta;
+  
+  matrix[D,E] beta; // Recentered coefficients
 
   // Recentering             
   for (d in 1:D){
@@ -46,6 +46,46 @@ model {
     tau[d] ~ cauchy(0, 2.5);                  // Prior model
       for (i in 1:E)
         gamma[d,i] ~ normal(mu[d], tau[d]);   // Non-centered hierarchical model
+  }             
+  for (n in 1:N)
+    y[n] ~ normal(X[n, :]*beta[:, e[n]], 1);  // Observational model
+}
+"""
+
+
+model_3 = """
+data {
+  int<lower=0> N;             // number of observations
+  int<lower=1> D;             // number of covariates
+  int<lower=1> E;             // number of environments
+  int<lower=1,upper=E> e[N];  // associated environment
+  matrix[N,D] X;              // covariate matrix
+  vector[N] y;                // target vector
+}
+
+parameters {
+  real mu[D];                 // population mean
+  real<lower=0> tau[D];       // population scale
+  matrix[D,E] gamma;          // Non-centered coefficients
+}
+
+transformed parameters {
+  
+  matrix[D,E] beta; // Recentered coefficients
+
+  // Recentering             
+  for (d in 1:D){
+    for (i in 1:E){
+      beta[d,i] = mu[d] + tau[d]*gamma[d,i];
+    }
+  }
+}
+
+model {
+  for (d in 1:D){
+    mu[d] ~ normal(0, 5);                     // Prior model
+    tau[d] ~ cauchy(0, 2.5);                  // Prior model
+    gamma[d, :] ~ std_normal();   // Non-centered hierarchical model
   }             
   for (n in 1:N)
     y[n] ~ normal(X[n, :]*beta[:, e[n]], 1);  // Observational model
@@ -101,7 +141,7 @@ def bhip_fit(dataframe, model_description, seed):
 # Fit 
 if __name__ == '__main__':
     list_of_fit = list()
-    for i in range(100):
+    for i in range(1):
         filename_scm = 'data/experimentA/scm' + str(i) + '.pkl'
         with open(filename_scm, 'rb') as inp:
             S = pickle.load(inp)
@@ -111,7 +151,7 @@ if __name__ == '__main__':
             dataframe = pd.read_csv(filename_df, index_col=0)
             dataframe.columns = ['Y'] + ['X' + str(i + 1) for i in range(dataframe.shape[1] - 1)]
             #fit data with stan
-            F = bhip_fit(dataframe, model_2, 100 + i)
+            F = bhip_fit(dataframe, model_1, 100 + i)
             list_of_fit.append(F)
 
 
@@ -138,6 +178,33 @@ def pooling_factor(sample_beta, sample_mu, E: int):
     # pooling factor
     lambda_pool = 1 - var_exp_diff / exp_var_diff
     return lambda_pool
+
+
+def estimate_hdi(sample, alpha):
+    N = len(sample)
+    hdi_upper = N
+    hdi_lower = 0
+    sorted_sample = sorted(sample)
+    N_discard = round(alpha*N)
+    
+    while(N_discard>0):
+        
+        diff_low = abs(sorted_sample[hdi_lower] - sorted_sample[hdi_lower + 1])
+        diff_up = abs(sorted_sample[hdi_upper] - sorted_sample[hdi_lower - 1])
+        
+        if diff_low == diff_up:
+            hdi_lower += 1
+            hdi_upper -= 1
+            N_discard -= 2
+        
+        if diff_low > diff_up:
+            hdi_lower += 1
+            N_discard -= 1
+       
+        if diff_low < diff_up:
+            hdi_upper -= 1
+            N_discard -= 1
+    return(sorted_sample[hdi_lower],sorted_sample[hdi_upper])
 
 def hdi_rope_test(sample, margin, alpha):
     ## Credible Interval
