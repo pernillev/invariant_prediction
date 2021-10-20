@@ -10,48 +10,35 @@ import pandas as pd
 import pystan
 import pickle
 
-# Models
-# non centered reparamitrization
-model_2 = """
+############# Models #############
+# Regular hierachical model
+model_1 = """
 data {
-  int<lower=0> N;             // number of observations
-  int<lower=1> D;             // number of covariates
-  int<lower=1> E;             // number of environments
-  int<lower=1,upper=E> e[N];  // associated environment
-  matrix[N,D] X;              // covariate matrix
-  vector[N] y;                // target vector
+    int<lower=0> N;             // number of observations
+    int<lower=1> D;             // number of covariates
+    int<lower=1> E;             // number of environments
+    int<lower=1,upper=E> e[N];  // associated environment
+    matrix[N,D] X;              // covariate matrix
+    vector[N] y;                // target vector
 }
-
 parameters {
-  real mu[D];                 // population mean
-  real<lower=0> tau[D];       // population scale
-  matrix[D,E] gamma;          // Non-centered coefficients
-}
-
-transformed parameters {
-  
-  matrix[D,E] beta; // Recentered coefficients
-
-  // Recentering             
-  for (d in 1:D){
-    for (i in 1:E){
-      beta[d,i] = mu[d] + tau[d]*gamma[d,i];
-    }
-  }
-}
-
+    real mu[D];                 // population mean
+    real<lower=0> tau[D];       // population scale
+    matrix[D,E] beta;           // column of coefficients for each environment
+} 
 model {
   for (d in 1:D){
-    mu[d] ~ normal(0, 5);                     // Prior model
-    tau[d] ~ cauchy(0, 2.5);                  // Prior model
-      for (i in 1:E)
-        gamma[d,i] ~ normal(mu[d], tau[d]);   // Non-centered hierarchical model
-  }             
+    mu[d] ~ normal(0, 1);
+    tau[d] ~ cauchy(0, 1);
+    for (i in 1:E)
+      beta[d,i] ~ normal(mu[d], tau[d]); 
+  }
+  
   for (n in 1:N)
-    y[n] ~ normal(X[n, :]*beta[:, e[n]], 1);  // Observational model
+    y[n] ~ normal(X[n, :]*beta[:, e[n]], 1);
 }
 """
-
+# non centered coefficients
 
 model_3 = """
 data {
@@ -92,36 +79,10 @@ model {
 }
 """
 
-model_1 = """
-data {
-    int<lower=0> N;             // number of observations
-    int<lower=1> D;             // number of covariates
-    int<lower=1> E;             // number of environments
-    int<lower=1,upper=E> e[N];  // associated environment
-    matrix[N,D] X;              // covariate matrix
-    vector[N] y;                // target vector
-}
-parameters {
-    real mu[D];                 // population mean
-    real<lower=0> tau[D];       // population scale
-    matrix[D,E] beta;           // column of coefficients for each environment
-} 
-model {
-  for (d in 1:D){
-    mu[d] ~ normal(0, 1);
-    tau[d] ~ cauchy(0, 1);
-    for (i in 1:E)
-      beta[d,i] ~ normal(mu[d], tau[d]); 
-  }
-  
-  for (n in 1:N)
-    y[n] ~ normal(X[n, :]*beta[:, e[n]], 1);
-}
-"""
 
 
-# Simulation functions
-# fit
+######### Fitting simlulated data ############
+
 def bhip_fit(dataframe, model_description, seed):
     Y = dataframe.Y
     X = dataframe.drop(['Y'], axis=1)
@@ -141,7 +102,7 @@ def bhip_fit(dataframe, model_description, seed):
 # Fit 
 if __name__ == '__main__':
     list_of_fit = list()
-    for i in range(1):
+    for i in range(2):
         filename_scm = 'data/experimentA/scm' + str(i) + '.pkl'
         with open(filename_scm, 'rb') as inp:
             S = pickle.load(inp)
@@ -155,7 +116,7 @@ if __name__ == '__main__':
             list_of_fit.append(F)
 
 
-# Tests
+############### Invariance tests ################
 def pooling_factor(sample_beta, sample_mu, E: int):
     """
     Parameters
@@ -185,9 +146,10 @@ def estimate_hdi(sample, alpha):
     hdi_upper = N
     hdi_lower = 0
     sorted_sample = sorted(sample)
-    N_discard = round(alpha*N)
+    # number of samples to exclude from 1-alpha interval
+    N_exclude = round(alpha*N) 
     
-    while(N_discard>0):
+    while(N_exclude>0):
         
         diff_low = abs(sorted_sample[hdi_lower] - sorted_sample[hdi_lower + 1])
         diff_up = abs(sorted_sample[hdi_upper] - sorted_sample[hdi_lower - 1])
@@ -195,15 +157,16 @@ def estimate_hdi(sample, alpha):
         if diff_low == diff_up:
             hdi_lower += 1
             hdi_upper -= 1
-            N_discard -= 2
+            N_exclude -= 2
         
         if diff_low > diff_up:
             hdi_lower += 1
-            N_discard -= 1
+            N_exclude -= 1
        
         if diff_low < diff_up:
             hdi_upper -= 1
-            N_discard -= 1
+            N_exclude -= 1
+    
     return(sorted_sample[hdi_lower],sorted_sample[hdi_upper])
 
 def hdi_rope_test(sample, margin, alpha):
@@ -277,6 +240,8 @@ def bhip_test(fit,scm,alpha = 0.05,global_rope = 0):
 #             dataframe.columns = ['Y'] + ['X' + str(i + 1) for i in range(dataframe.shape[1] - 1)]
 #             F = bhip_fit(dataframe, model_2, 100 + i)
 #             list_of_fit.append(F)
+
+
 
 # if __name__ == '__main__':
 #     list_of_fit = list()
