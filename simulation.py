@@ -18,7 +18,7 @@ def pick_coef(lb,ub):
 ## Experiment A - ICP simulation replication
 def generate_random_SCM(seed):
     # generate random quantities
-    D = random.randint(5,40) # number of nodes
+    D = random.randint(5,15) # number of nodes
     deg = random.randint(1,4) # average degree of graph
     lb1 = random.uniform(0.1,2) # lower bound on linear coefficients
     ub1 = lb1 + random.uniform(0.1,1) # upper bound of coefficient values
@@ -89,6 +89,51 @@ def generate_dataframe(E,Ns,scm):
         df_e = pd.DataFrame(data_int, index = np.repeat(e,N_int))
         df = pd.concat([df,df_e])
     return df
+# %%
+# Sample observational and interventional data
+scm = generate_random_SCM(1)
+Ns = [100,200,300,400,500]
+N_obs = random.choice(Ns)
+e = 1 
+data_obs = scm.sample(N_obs)
+df = pd.DataFrame(data_obs, index = np.repeat(e,N_obs))
+for e in range(2,3):
+  N_int = random.choice(Ns)
+  D = len(scm.W)
+        
+  # generate random quantities regarding interventions
+        
+  a_min = np.random.uniform(0.1,4,D)
+  a_Delta = [0 if (random.choice(range(3))==0) 
+            else np.random.uniform(0.1,2) for node in range(D)]
+  a = a_min + a_Delta
+        
+  # sample indexset of nodes to intervene on (disregarding X0 = Y)
+  inv_theta = [D if (random.choice(range(6))==0) 
+               else np.random.uniform(1.1,3)]
+  A = random.sample(range(0,D), round((D)/inv_theta[0])) 
+  
+  # lower and upper bound of new coefficients
+  lbe = random.uniform(0.1,1) 
+  ube = lbe + random.uniform(0.1,1)
+        
+   # Intervene on nodes in A
+  scm_intervention = scm
+  shift_dict = {}
+  for node in A:
+      # dictionary for shift intervention
+      shift_dict[node] = (0,a[node])
+            # potentially sample new coefficient     
+      if (random.choice(range(3))==0): 
+           new_coefs = [0 if scm.W[node][relation] == 0 
+                        else pick_coef(lbe,ube) for relation in range(D)]
+           scm_intervention.W[node] = new_coefs
+            
+        # sample shift-intervention data for environment e
+  data_int = scm_intervention.sample(N_int, shift_interventions = shift_dict) 
+  df_e = pd.DataFrame(data_int, index = np.repeat(e,N_int))
+  df = pd.concat([df,df_e])
+
 # %%
 # simulate and save random SCM and correponding data
 for exp in range(500):
