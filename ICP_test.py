@@ -1,12 +1,12 @@
 import pickle
 import causalicp
 
-N_scm = 50
+N_scm = 2
 N_data = 50
 
 icp_results = list()
-for i in range(N_scm):
-    filename_scm = 'data/experimentA/sim_vs2_' + str(i) + '.pkl'
+for i in range(1,N_scm):
+    filename_scm = 'data/experimentA/simulation_A' + str(i) + '.pkl'
     with open(filename_scm, 'rb') as inp:
         scenario = pickle.load(inp)
     print('scenario', i)
@@ -20,13 +20,13 @@ for i in range(N_scm):
         print('data', j)
         # Simulated data
         data = scenario[2][j]
-        ICP = causalicp.fit(data, 0, alpha=0.05, sets=None, precompute=False, verbose=False, color=True)
+        ICP = causalicp.fit(data, target=0, alpha=0.05, sets=None, precompute=False, verbose=False, color=True)
         estimate.append(ICP.estimate)
 
     icp_results.append((true_pa, true_ch, estimate))
 
-with open('data/experimentA/icp_results.pkl', 'wb') as outp:  # Overwrites any existing file.
-    pickle.dump(icp_results, outp, pickle.HIGHEST_PROTOCOL)
+# with open('data/experimentA/icp_results.pkl', 'wb') as outp:  # Overwrites any existing file.
+#     pickle.dump(icp_results, outp, pickle.HIGHEST_PROTOCOL)
 
 
 #results2 = [results[i] for i in range(N_test) if results[i][2] != None] # non rejected models

@@ -1,5 +1,5 @@
-from ExperimentA_simulate import gen_scms
-from ExperimentA_simulate import generate_interventions
+from invariant_prediction.ExperimentA_simulate import gen_scms
+from invariant_prediction.ExperimentA_simulate import generate_interventions
 import numpy as np
 import random
 
