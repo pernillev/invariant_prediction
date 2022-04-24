@@ -43,7 +43,31 @@ def generate_scms(G, p_min, p_max, k_min, k_max, w_min, w_max, m_min, m_max, v_m
     return cases
 
 
-def generate_shift_interventions(scm, no_ints, int_size, m_min, m_max, v_min, v_max, include_obs=False, exclude_target=False):
+import random
+
+
+def generate_interventions(no_ints, n_min, n_max, nodes, m_min, m_max, v_min, v_max, seed=0):
+    """Generate a set of interventions
+    """
+    interventions = []
+    if seed > 0:
+        random.seed(seed)
+    # For each intervention
+    for _ in range(no_ints):
+        int_size = np.random.choice(range(n_min, n_max))
+        targets = np.random.choice(nodes, int_size, replace=False)
+        # sample parameters
+        means = np.random.uniform(m_min, m_max, len(targets)) if m_min != m_max else [m_min] * len(targets)
+        means = [int(m) for m in means]
+        variances = np.random.uniform(v_min, v_max, len(targets)) if v_min != v_max else [v_min] * len(targets)
+        # assemble intervention
+        intervention = dict([(t, (mean, var)) for (t, mean, var) in zip(targets, means, variances)])
+        interventions.append(intervention)
+    return interventions
+
+
+def generate_shift_interventions(scm, no_ints, int_size, m_min, m_max, v_min, v_max, include_obs=False,
+                                 exclude_target=False):
     """Generate a set of shift interventions for a given scm, randomly sampling
     no_ints sets of targets of size int_size, and sampling the
     intervention means/variances uniformly from [m_min,m_max], [v_min, v_max].

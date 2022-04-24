@@ -5,12 +5,11 @@ import time
 from datetime import datetime
 import numpy as np
 
-
 from invariant_prediction.simulate_functions import generate_scms
 from invariant_prediction.simulate_functions import generate_shift_interventions
 
 random.seed(1010)
-##### Generate SCM and interventions ######
+# Generate SCM and interventions
 N_scenarios = 50
 list_of_scm = list()
 for _ in range(N_scenarios):
@@ -37,7 +36,7 @@ parents = [set([i for i in range(len(SCM.W)) if SCM.W[i][0] != 0]) for SCM in li
 ps = [scm.p for scm in list_of_scm]
 lst_1 = [list_of_scm[i] for i in range(N_scenarios) if len(parents[i]) > 0]
 lst_2 = [list_of_scm[i] for i in range(N_scenarios) if len(parents[i]) == 0]
-listA1 = lst_1 + lst_2[0:round(len(lst_1)*0.25)]
+listA1 = lst_1 + lst_2[0:round(len(lst_1) * 0.25)]
 
 N_intervention = 50
 cases = list()
@@ -72,9 +71,11 @@ def pick_coef(lb, ub):
     coef = np.round(np.random.uniform(lb, ub, 1) * random.choice([-1, 1]), 2)
     return coef[0]
 
+
 def save_object(obj, filename):
     with open(filename, 'wb') as outp:  # Overwrites any existing file.
         pickle.dump(obj, outp, pickle.HIGHEST_PROTOCOL)
+
 
 print("\n\nSampling data for %d test cases %s\n\n" % (len(cases), datetime.now()))
 start = time.time()
